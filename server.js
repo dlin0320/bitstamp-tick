@@ -1,15 +1,13 @@
-import express, { json } from "express";
+import express from "express";
 import { createServer } from "http";
-import cors from "cors";
 import { WebSocketServer } from "ws";
 import { ipLimiter, idLimiter, store } from "./limit.js";
+import BitstampSocket from "./socket.js";
 
 const FETCH_URL = "https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty";
 const PORT = 8080;
 const app = express();
 const server = createServer(app);
-app.use(cors());
-app.use(json());
 app.get("/", (req, res) => {
   res.sendStatus(200);
 });
@@ -42,8 +40,23 @@ server.listen(PORT, () => {
   console.log(`server listening on port: ${PORT}`);
 });
 
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server: server });
 
-wss.on("connection", ws => {
-  console.log("user connected")
-})
+wss.on("connection", (ws) => {
+  console.log("new connection");
+  const bs = new BitstampSocket((message) => {
+    ws.send(message);
+  });
+  ws.on("message", (message) => {
+    try {
+      const { event, channels } = JSON.parse(message.toString());
+      if (event === "subscribe" || event === "unsubscribe") {
+        for (const channel of channels) {
+          bs.send(event, channel);
+        };
+      };
+    } catch (error) {
+      console.log(error);
+    };
+  });
+});
