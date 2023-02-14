@@ -43,20 +43,28 @@ server.listen(PORT, () => {
 const wss = new WebSocketServer({ server: server });
 
 wss.on("connection", (ws) => {
-  console.log("new connection");
   const bs = new BitstampSocket((message) => {
     ws.send(message);
   });
+
+  ws.on("error", (error) => {
+    console.log(error);
+  });
+
   ws.on("message", (message) => {
     try {
-      const { event, channels } = JSON.parse(message.toString());
-      if (event === "subscribe" || event === "unsubscribe") {
-        for (const channel of channels) {
-          bs.send(event, channel);
+      const { event, channels: pairs } = JSON.parse(message.toString());
+      if (event === "subscribe") {
+        if (!bs.subscribe(event, pairs)) {
+          ws.send("subscription limit reached, please unsubscribe first");
         };
-      };
+      }
+      else if (event === "unsubscribe") {
+        bs.unsubscribe(event, pairs);
+      }
+      else throw Error("socket error");
     } catch (error) {
-      console.log(error);
+      ws.send(error.toString());
     };
   });
 });

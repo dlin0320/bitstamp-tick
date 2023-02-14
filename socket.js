@@ -16,18 +16,19 @@ export default class BitstampSocket {
       });
       this.ws.on("message", (_message) => {
         const { event, channel, data } = JSON.parse(_message.toString());
+        const pair = channel.replace(CHANNEL_PREFIX, "");
         let message = "";
         switch (event) {
           case "trade":
-            message = JSON.stringify(this.#processData(data, channel));
+            message = JSON.stringify(this.#processData(data, pair));
             break;
           case "bts:subscription_succeeded":
-            this.pairs.add(channel)
-            message = `${channel.replace(CHANNEL_PREFIX, "")} subscribed`;
+            this.pairs.add(pair)
+            message = `${pair} subscribed`;
             break;
           case "bts:unsubscription_succeeded":
-            this.pairs.delete(channel);
-            message = `${channel.replace(CHANNEL_PREFIX, "")} unsubscribed`;
+            this.pairs.delete(pair);
+            message = `${pair} unsubscribed`;
             break;
           default:
             message = JSON.stringify({ event, channel, data });
@@ -37,36 +38,58 @@ export default class BitstampSocket {
     });
   };
 
-  send(_event, _channel) {
-    const channel = `${CHANNEL_PREFIX}${_channel}`;
-    const event = `${EVENT_PREFIX}${_event}`
-    const message = JSON.stringify({ event, data: { channel } });
-    this.ws.send(message);
+  subscribe(event, pairs) {
+    for (const pair of pairs) {
+      if (this.pairs.has(pair)) continue;
+      else if (this.pairs.size === 10) return false;
+      this.#send(event, pair);
+    };
+    return true;
   };
 
-  #processData(data, channel) {
-    const { timestamp, price } = data;
-    const key = `${channel}:${Math.floor(timestamp / 60)}`;
-    const prices = this.cache.get(key);
-    const time = new Date(timestamp * 1000).toLocaleTimeString();
-    if (prices != undefined) {
-      this.#OHLC(prices, price);
-      this.cache.set(key, prices);
-      return { 
-        open: prices[0], 
-        high: prices[1], 
-        low: prices[2], 
-        close: prices[3], 
-        time
+  unsubscribe(event, pairs) {
+    for (const pair of pairs) {
+      if (this.pairs.has(pair)) {
+        this.#send(event, pair)
       };
     };
-    this.cache.set(key, [price, price, price, price]);
-    return { open: price, time };
-  }
+  };
 
-  #OHLC(prices, price) {
-    if (prices[1] < price) prices[1] = price;
-    if (prices[2] > price) prices[2] = price;
-    prices[3] = price;
-  }
+  #send(event, pair) {
+    this.ws.send(JSON.stringify({
+      event: `${EVENT_PREFIX}${event}`,
+      data: {
+        channel: `${CHANNEL_PREFIX}${pair}`
+      }
+    }));
+  };
+
+  #processData(data, pair) {
+    const { timestamp, price } = data;
+    const key = `${pair}:${Math.floor(timestamp / 60)}`;
+    const value = this.#OHLC(this.cache.get(key), price);
+    this.cache.set(key, value);
+    return {
+      pair,
+      price,
+      time: new Date(timestamp * 1000).toLocaleTimeString(), 
+      OHLC: {
+        open: value[0],
+        high: value[1],
+        low: value[2],
+        close: value[3]
+      }
+    };
+  };
+
+  #OHLC(ohlc, price) {
+    if (ohlc == undefined) {
+      return Array(4).fill(price);
+    };
+    const [, high, low, ] = ohlc;
+    if (price > high) ohlc[1] = price;
+    if (price < low) ohlc[2] = price;
+    ohlc[3] = price;
+    return ohlc;
+  };
 };
