@@ -2,7 +2,8 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { ipLimiter, idLimiter, store } from "./limit.js";
-import BitstampSocket from "./socket.js";
+import BitstampSocket, { waitForSocketState } from "./socket.js";
+import { BITSTAMP_ALERT, SUBSCRIPTION_LIMIT_WARNING } from "./utils.js";
 
 const FETCH_URL = "https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty";
 const PORT = 8080;
@@ -42,21 +43,24 @@ server.listen(PORT, () => {
 
 const wss = new WebSocketServer({ server: server });
 
-wss.on("connection", (ws) => {
+wss.on("connection", async (ws) => {
   const bs = new BitstampSocket((message) => {
     ws.send(message);
   });
+  await waitForSocketState(bs.ws);
+  ws.send(BITSTAMP_ALERT);
 
   ws.on("error", (error) => {
+    ws.send(error);
     console.log(error);
   });
 
   ws.on("message", (message) => {
     try {
-      const { event, channels: pairs } = JSON.parse(message.toString());
+      const { event, pairs } = JSON.parse(message.toString());
       if (event === "subscribe") {
         if (!bs.subscribe(event, pairs)) {
-          ws.send("subscription limit reached, please unsubscribe first");
+          ws.send(SUBSCRIPTION_LIMIT_WARNING);
         };
       }
       else if (event === "unsubscribe") {

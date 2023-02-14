@@ -1,5 +1,6 @@
 import WebSocket from "ws";
 import NodeCache from "node-cache";
+import { subscribeMessage, unsubscribeMessage } from "./utils.js";
 
 const BITSTAMP_SERVER = "wss://ws.bitstamp.net";
 const EVENT_PREFIX = "bts:";
@@ -24,11 +25,11 @@ export default class BitstampSocket {
             break;
           case "bts:subscription_succeeded":
             this.pairs.add(pair)
-            message = `${pair} subscribed`;
+            message = subscribeMessage(pair);
             break;
           case "bts:unsubscription_succeeded":
             this.pairs.delete(pair);
-            message = `${pair} unsubscribed`;
+            message = unsubscribeMessage(pair);
             break;
           default:
             message = JSON.stringify({ event, channel, data });
@@ -93,3 +94,15 @@ export default class BitstampSocket {
     return ohlc;
   };
 };
+
+export const waitForSocketState = (socket, state=1) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      if (socket.readyState === state) {
+        resolve();
+      } else {
+        waitForSocketState(socket, state).then(resolve);
+      }
+    }, 3);
+  });
+}
