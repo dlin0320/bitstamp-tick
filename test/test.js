@@ -12,7 +12,7 @@ describe("rate limit", async () => {
 
 	it("ip limit", async () => {
 		for (let i = 1; i <= 11; i++) {
-			const response = await fetch(`${url}/${i}`);
+			const response = await fetch(`${url}?user=${i}`);
 			if (i === 11) {
 				const data = await response.json();
 				expect(response.status).to.equal(429)
@@ -27,7 +27,7 @@ describe("rate limit", async () => {
 
 	it("id limit", async () => {
 		for (let i = 1; i <= 6; i++) {
-			const response = await fetch(`${url}/1`);
+			const response = await fetch(`${url}?user=1`);
 			if (i === 6) {
 				const data = await response.json();
 				expect(response.status).to.equal(429);

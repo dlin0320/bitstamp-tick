@@ -17,7 +17,7 @@ export const idLimiter = rateLimit({
 	store: store,
 	requestPropertyName: "idRateLimit",
 	keyGenerator: (req, res) => {
-		return req.params.user;
+		return req.query.user;
 	},
 	handler: (req, res, next) => {
 		next();

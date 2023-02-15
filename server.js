@@ -13,7 +13,7 @@ app.get("/", (req, res) => {
   res.sendStatus(200);
 });
 
-app.get("/data/:user", idLimiter, ipLimiter, (req, res) => {
+app.get("/data", idLimiter, ipLimiter, (req, res) => {
   const ip = req.ipRateLimit;
   const id = req.idRateLimit;
   if (ip.current > ip.limit || id.current > id.limit) {
